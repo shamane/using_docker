@@ -4,20 +4,25 @@ services:
     build: .
     depends_on:
       - postgres
-    environment:
-      - PASSENGER_APP_ENV=development
+    command: bundle exec puma -C config/puma.rb
   webapp:
     container_name: webapp
     build: .
     depends_on:
       - postgres
       - webapp_setup
-    environment:
-      - PASSENGER_APP_ENV=development
+    volumes:
+      - /home/vzl/work/docker/rordocker2/webapp
+    ports:
+      - "3000:3000"
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile-nginx
+    links:
+      - webapp
     ports:
       - "80:80"
-    volumes:
-      - .:/home/vzl/work/docker/rordocker2/webapp
   postgres:
     image: postgres:9.5.3
     environment:

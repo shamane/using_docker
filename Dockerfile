@@ -1,44 +1,34 @@
-FROM phusion/passenger-ruby23:0.9.19
+# Base image:
+FROM ruby:2.3.1
 
-# Set correct environment variables.
-ENV HOME /root
+# Install dependencies
+RUN apt-get update -qq && apt-get install -y -o Dpkg::Options::="--force-confold" netcat
 
-# Use baseimage-docker's init process.
-CMD ["/sbin/my_init"]
+# Set an environment variable where the Rails app is installed to inside of Docker image:
+ENV RAILS_ROOT /home/vzl/work/docker/rordocker2/webapp
+RUN mkdir -p $RAILS_ROOT
 
-# Additional packages: we are adding the netcat package so we can
-# make pings to the database service
-RUN apt-get update && apt-get install -y -o Dpkg::Options::="--force-confold" netcat
+# Set working directory, where the commands will be ran:
+WORKDIR $RAILS_ROOT
 
-# Enable Nginx and Passenger
-RUN rm -f /etc/service/nginx/down
-
-# Add virtual host entry for the application. Make sure
-# the file is in the correct path
-RUN rm /etc/nginx/sites-enabled/default
-ADD webapp.conf /etc/nginx/sites-enabled/webapp.conf
-
-# In case we need some environmental variables in Nginx. Make sure
-# the file is in the correct path
-ADD rails-env.conf /etc/nginx/main.d/rails-env.conf
-
-# Install gems: it's better to build an independent layer for the gems
-# so they are cached during builds unless Gemfile changes
-WORKDIR /tmp
-ADD Gemfile /tmp/
-ADD Gemfile.lock /tmp/
+# Gems:
+COPY Gemfile Gemfile
+COPY Gemfile.lock Gemfile.lock
+RUN gem install bundler
 RUN bundle install
 
-# Copy application into the container and use right permissions: passenger
-# uses the app user for running the application
-# RUN mkdir /home/vzl/work/docker/rordocker2/webapp_app
-# COPY . /home/vzl/work/docker/rordocker2/webapp_app
-# RUN usermod -u 1000 app
-# RUN chown -R app:app /home/vzl/work/docker/rordocker2/webapp_app
+RUN rm -f /etc/service/nginx/down
+# RUN rm /etc/nginx/sites-enabled/default
+# ADD webapp.conf /etc/nginx/sites-enabled/webapp.conf
 
-WORKDIR /home/vzl/work/docker/rordocker2/webapp
+ADD rails-env.conf /etc/nginx/main.d/rails-env.conf
 
-# Clean up APT when done.
-RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+COPY config/puma.rb config/puma.rb
 
-EXPOSE 80
+# Copy the main application.
+COPY . .
+
+EXPOSE 3000
+
+# The default command that gets ran will be to start the Puma server.
+CMD bundle exec puma -C config/puma.rb
